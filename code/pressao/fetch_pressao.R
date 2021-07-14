@@ -1,3 +1,5 @@
+library(tidyverse)
+
 #'@title Baixa as proposições de um painel
 #'@description Recebe uma url da API do Painel e um painel específico e
 #'retorna as proposições pertencentes ao painel.
