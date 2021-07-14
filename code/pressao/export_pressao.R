@@ -10,7 +10,7 @@
   lapply(packages_list, require, character.only = TRUE)
 }
 
-.install_and_load_libraries(c("tidyverse", "RCurl", "jsonlite", "here"))
+.install_and_load_libraries(c("tidyverse", "RCurl", "jsonlite", "here", "optparse"))
 source(here::here("code/pressao/fetch_pressao.R"))
 
 .HELP <- "
