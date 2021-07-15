@@ -39,7 +39,7 @@ get_args <- function() {
                           default="socioambiental",
                           help=.HELP,
                           metavar="character"),
-    optparse::make_option(c("-i", "--data_inicio"),
+    optparse::make_option(c("-i", "--data_inicial"),
                           type="character",
                           default=NULL,
                           help=.HELP,
@@ -69,13 +69,15 @@ data_inicial <- args$data_inicial
 data_final <- args$data_final
 saida <- args$export_filepath
 
+if (is.null(data_final)) {
+  data_final <- Sys.Date()
+}
+
 if (is.null(data_inicial)) {
-  if (is.null(data_final)) {
-    data_final <- Sys.Date()
-  }
   data_inicial <- data_final - 90
 }
 
+print(data_inicial)
 proposicoes <-
   fetch_proposicoes_by_painel(url, painel)
 
