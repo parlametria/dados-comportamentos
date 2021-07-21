@@ -51,7 +51,7 @@ get_args <- function() {
                           metavar="character"),
     optparse::make_option(c("-e", "--export_filepath"),
                           type="character",
-                          default=here::here("data/agenda/temperatura.csv"),
+                          default=here::here("data/ready/temperatura/temperatura.csv"),
                           help=.HELP,
                           metavar="character")
   );
