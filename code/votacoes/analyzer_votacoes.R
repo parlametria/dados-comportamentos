@@ -242,7 +242,7 @@ processa_votacoes_senado <- function() {
            autor,
            uri_tramitacao)
   
-  votos <- purrr::map_df(
+  votos <- purrr::map2_df(
     votacoes_filtradas$id_proposicao,
     votacoes_filtradas$id_votacao,
     ~ fetch_votos_por_proposicao_votacao_senado(.x, .y)
