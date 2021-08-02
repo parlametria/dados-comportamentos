@@ -12,4 +12,4 @@ onde:
 - **painel**: Nome do painel de interesse. O painel default é "socioambiental";
 - **data_inicial**: Data para marcar o início do recorte de tempo, no formato `AAAA-MM-DD`. A data inicial default será 90 dias antes da data_final.
 - **data_final**: Data para marcar o final do recorte de tempo, no formato `AAAA-MM-DD`. A data final default será a data atual;
-- **export_filepath:** Caminho para exportação dos dados de temperatura. O caminho default é `data/agenda/temperatura.csv`.
+- **export_filepath:** Caminho para exportação dos dados de temperatura. O caminho default é `data/ready/temperatura/temperatura.csv`.
