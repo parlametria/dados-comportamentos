@@ -1,0 +1,184 @@
+library(tidyverse)
+library(here)
+library(agoradigital)
+source(here("code/utils/check_packages.R"))
+source(here("code/proposicoes/fetcher_proposicoes_camara.R"))
+source(here("code/proposicoes/fetcher_proposicoes_senado.R"))
+.check_and_load_perfilparlamentar_package()
+
+#' @title Processa dados de proposições apresentadas na Câmara em 2019 e 2020
+#' @description Processa dados de proposições do tema de Meio Ambiente que foram apresentadas em
+#' 2019 e 2020
+#' @return Dataframe com informações das proposições
+#' @examples
+#' processa_proposicoes_camara()
+processa_proposicoes_camara <- function() {
+  .TIPOS_PROPOSICOES <- c("PDL", "PEC", "PL", "PLP", "PRS", "MPV")
+  
+  proposicoes_ma_agric <- fetch_proposicoes_apresentadas_ma_camara()
+  
+  proposicoes_ma_agric_filtradas <- proposicoes_ma_agric %>%
+    filter(sigla_tipo %in% .TIPOS_PROPOSICOES)
+  
+  proposicoes_ma_agric_filtradas_ano <- proposicoes_ma_agric_filtradas %>% 
+    rowwise(.) %>% 
+    mutate(ano_apresentacao_origem = .crawler_ano_apresentacao_origem_camara(id)) %>% 
+    ungroup() 
+  
+  proposicoes_ma_agric_filtradas <- proposicoes_ma_agric_filtradas_ano %>% 
+    mutate(ano_apresentacao_origem = as.numeric(ano_apresentacao_origem)) %>% 
+    filter(is.na(ano_apresentacao_origem) | ano_apresentacao_origem >= 2019)
+  
+  ## Marcando quais as proposições tiveram votações nominais em plenário em 2019 e 2020
+  proposicoes_votadas <- fetch_proposicoes_votadas_plenario_camara()
+  
+  proposicoes <- proposicoes_ma_agric_filtradas %>%
+    left_join(proposicoes_votadas, by = "id") %>%
+    mutate(votada_plenario = as.numeric(!is.na(votada_plenario)))
+  
+  proposicoes_autores <-
+    purrr::pmap_dfr(list(proposicoes$id), ~ get_autores(..1)) %>% 
+    select(-cod_tipo) %>% 
+    group_by(id_documento) %>% 
+    mutate(autor = paste(nome, collapse = "; ")) %>% 
+    ungroup() %>% 
+    select(id_documento, autor)
+  
+  ## Gerando CSV no formato final
+  proposicoes_final <- proposicoes %>%
+    inner_join(proposicoes_autores, by = c("id" = "id_documento")) %>%
+    mutate(
+      link = paste0(
+        "https://www.camara.leg.br/proposicoesWeb/fichadetramitacao?idProposicao=",
+        id
+      ),
+      casa = "camara"
+    ) %>%
+    select(sigla_tipo,
+           numero,
+           ano,
+           ementa,
+           votada_plenario,
+           cod_tipo,
+           id,
+           casa,
+           tema,
+           autor,
+           link) %>% 
+    distinct(id, .keep_all= T)
+  
+  proposicoes_preenchidas <- proposicoes_final %>% 
+    merge_proposicoes_com_ja_preenchidas("camara")
+  
+  return(proposicoes_preenchidas)
+}
+
+#' @title Processa dados de proposições apresentadas no Senado em 2019 e 2020
+#' @description Processa dados de proposições do tema de Meio Ambiente e Agricultura que foram
+#' apresentadas em 20149 e 2020
+#' @return Dataframe com informações das proposições
+#' @examples
+#' processa_proposicoes_senado()
+processa_proposicoes_senado <- function() {
+
+  .TIPOS_PROPOSICOES <- c("PDL", "PEC", "PL", "PLP", "PRS", "MPV")
+  proposicoes <- fetch_proposicoes_apresentadas_ma_senado() %>% 
+    filter(ano >= 2019)
+  
+  proposicoes_filtradas <- proposicoes %>%
+    filter(sigla_tipo %in% .TIPOS_PROPOSICOES)
+  
+  proposicoes_filtradas_ano <- proposicoes_filtradas %>% 
+    rowwise(.) %>% 
+    mutate(ano_apresentacao_origem = .crawler_ano_apresentacao_origem_senado(id)) %>% 
+    ungroup()
+  
+  proposicoes_filtradas <- proposicoes_filtradas_ano %>% 
+    mutate(ano_apresentacao_origem = as.numeric(ano_apresentacao_origem)) %>% 
+    filter(is.na(ano_apresentacao_origem) | ano_apresentacao_origem >= 2019) %>% 
+    select(-ano_apresentacao_origem) %>% 
+    rowid_to_column("rn")
+  
+  proposicoes_info <-
+    purrr::map2_df(proposicoes_filtradas$id, proposicoes_filtradas$rn,
+                   function(x, y) {
+                      print(y)
+                      return(fetch_info_proposicao_senado(x))
+                      }) %>% 
+    group_by(id) %>%
+    mutate(autor = paste(autor, collapse = "; ")) %>%
+    ungroup()
+  
+  
+  proposicoes_final <- proposicoes_filtradas %>% 
+    inner_join(proposicoes_info, by = "id") %>%
+    filter(
+      str_detect(
+        tema,
+        "Nao especificado|Meio ambiente|Agricultura, pecuária e abastecimento|Recursos hídricos|Política fundiária e reforma agrária"
+      )
+    ) %>%
+    mutate(casa = "senado") %>% 
+    select(
+      sigla_tipo,
+      numero,
+      ano,
+      ementa,
+      id,
+      casa,
+      tema,
+      autor,
+      link = uri_tramitacao
+    ) %>% 
+    distinct(id, .keep_all=T)
+  
+  proposicoes_preenchidas <- proposicoes_final %>% 
+    merge_proposicoes_com_ja_preenchidas("senado")
+  
+  return(proposicoes_preenchidas)
+}
+
+
+#' @title Processa dados de proposições apresentadas na Câmara e no Senado em 2019 e 2020
+#' @description Processa dados de proposições do tema de Meio Ambiente e Agricultura que foram
+#' apresentadas em 20149 e 2020 no Congresso
+#' @return Dataframe com informações das proposições
+#' @examples
+#' processa_proposicoes()
+processa_proposicoes <- function() {
+  proposicoes_camara <- processa_proposicoes_camara()
+  proposicoes_senado <- processa_proposicoes_senado()
+  
+  proposicoes <- proposicoes_camara %>% 
+    bind_rows(proposicoes_senado) 
+  
+  return(proposicoes)
+}
+
+merge_proposicoes_com_ja_preenchidas <- function(proposicoes_df, casa_arg) {
+  source(here::here("code/constants.R"))
+  
+  if (casa_arg == "camara") {
+    url <- .URL_PLANILHA_PROPOSICAO_CAMARA
+  } else {
+    url <- .URL_PLANILHA_PROPOSICAO_SENADO
+  }
+  
+  proposicoes_preenchidas <-
+    read_csv(url, col_types = cols(.default = "c"))
+  
+  proposicoes_preenchidas_atuais <- proposicoes_preenchidas %>%
+    filter(id %in% proposicoes_df$id)
+  
+  proposicoes_a_adicionar <-
+    proposicoes_df %>% filter(!id %in% proposicoes_preenchidas$id)
+  
+  proposicoes <-
+    bind_rows(proposicoes_preenchidas_atuais, proposicoes_a_adicionar) %>%
+    filter(ano >= 2019) %>% 
+    mutate(proposicao = paste0(sigla_tipo, " ", numero, "/", ano),
+           casa = casa_arg) %>% 
+    distinct(id, .keep_all=T)
+  
+  return(proposicoes)
+}
