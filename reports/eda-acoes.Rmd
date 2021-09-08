@@ -1,0 +1,158 @@
+---
+title: "Análise exploratória das ações parlamentares"
+output:
+    html_document:
+    df_print: paged
+theme: sandstone
+---
+
+```{r setup, echo=FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(here)
+library(reactable)
+library(hrbrthemes)
+theme_set(theme_ipsum_rc())
+
+knitr::opts_chunk$set(tidy = FALSE,
+                      # fig.width = 6,
+                      # fig.height = 5,
+                      echo = FALSE)
+
+paleta = c("#404E4D",
+           "#92DCE5",
+           "#938BA1",
+           "#2D3142",
+           "#F4743B")
+```
+
+```{r read}
+acoes_raw = read_csv(
+    here::here("data/ready/acoes/acoes.csv"),
+    col_types = cols(.default = col_integer(),
+                     id_autor_parlametria = col_character())
+)
+
+entidades = read_csv(
+    here::here("data/ready/entidades/entidades.csv"),
+    col_types = cols(.default = col_character())
+) %>% 
+    group_by(id_entidade_parlametria) %>% 
+    filter(legislatura == max(as.numeric(legislatura)))
+
+acoes = acoes_raw %>% left_join(entidades,
+                                by = c("id_autor_parlametria" = "id_entidade_parlametria")) %>% 
+    select(-legislatura, 
+           -id_entidade, 
+           -casa, 
+           -sexo, 
+           -situacao, 
+           -em_exercicio, 
+           -is_parlamentar)
+
+acoes_long = acoes %>%
+    pivot_longer(4:11,
+                 names_to = "agenda",
+                 values_to = "acoes") %>%
+    complete(
+        nesting(id_autor_parlametria, nome, partido, uf),
+        nesting(mes, ano),
+        agenda,
+        fill = list(acoes = 0)
+    ) %>%
+    mutate(
+        acoes_c = case_when(
+            acoes == 0 ~ "00",
+            acoes == 1 ~ "01",
+            acoes > 1 & acoes < 10 ~ "02-09",
+            acoes >= 10 ~ "10+",
+            TRUE ~ NA_character_
+        )
+    ) 
+```
+
+```{r}
+acoes_long %>%
+    count(agenda, acoes_c) %>%
+    ggplot(aes(
+        x = reorder(agenda, n, max),
+        y = n,
+        fill = acoes_c
+    )) +
+    geom_col() +
+    coord_flip() +
+    scale_fill_brewer() +
+    labs(
+        x = "",
+        y = "Mês-parlamentar",
+        title = "Meses dos parlamentares com ações",
+        subtitle = "A contagem é de meses-parlamentares.",
+        fill = "Ações"
+    )
+
+acoes_long %>%
+    filter(acoes > 0) %>%
+    count(agenda, acoes_c) %>%
+    ggplot(aes(
+        x = reorder(agenda, n, sum),
+        y = n,
+        fill = acoes_c
+    )) +
+    geom_col() +
+    coord_flip() +
+    scale_fill_brewer() +
+    labs(
+        x = "",
+        y = "Mês-parlamentar",
+        title = "Meses dos parlamentares com ações",
+        subtitle = "A contagem é de meses-parlamentares.",
+        fill = "Ações"
+    )
+```
+
+```{r}
+acoes_long %>% 
+    group_by(nome, partido, uf, agenda) %>% 
+    summarise(acoes_total = sum(acoes), 
+              acoes_media = round(mean(acoes), 2), 
+              meses_ativos = sum(acoes > 0), 
+              .groups = "drop") %>% 
+    arrange(-acoes_total, -meses_ativos) %>% 
+    reactable(striped = T, searchable = T)
+```
+
+```{r}
+acoes_long %>% 
+    filter(agenda == "socioambiental") %>% 
+    group_by(nome, partido, uf, agenda) %>% 
+    summarise(acoes_total = sum(acoes), 
+              acoes_media = round(mean(acoes), 2), 
+              meses_ativos = sum(acoes > 0), 
+              .groups = "drop") %>% 
+    arrange(-acoes_total, -meses_ativos) %>% 
+    reactable(striped = T, searchable = T)
+```
+
+```{r fig.height=6, fig.width=6}
+acoes_long %>%
+    filter(
+        agenda %in% c("socioambiental", "transparencia-e-integridade"),
+        nome %in% c(
+            "Nilto Tatto",
+            "Nelson Barbudo",
+            "Eliziane Gama"
+        )
+    ) %>%
+    mutate(data = lubridate::ymd(str_glue("{ano}-{mes}-01"))) %>%
+    ggplot(aes(
+        x = data,
+        y = acoes,
+        group = nome,
+        color = nome
+    )) +
+    facet_wrap( ~ agenda, ncol = 1) +
+    scale_y_sqrt() + 
+    geom_line() + 
+    labs(title = "Ações ao longo do tempo",
+         subtitle = "Exemplos com alguns parlamentares")
+```
+
