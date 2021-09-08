@@ -27,3 +27,15 @@ padroniza_sigla <- function(sigla) {
   
   return(sigla_padronizada)
 }
+
+#' @title Recupera interesses do Parlametria
+#' @description Retorna os interesses cadastrados no Parlametria
+#' @param url_api  URL da API do Painel.
+#' @return Dataframe com dados dos interesses
+fetch_interesses <- function(url_api) {
+  interesses <- RCurl::getURI(paste0(url_api, "interesses")) %>%
+    jsonlite::fromJSON() %>%
+    select(interesse)
+  
+  return(interesses)
+}
