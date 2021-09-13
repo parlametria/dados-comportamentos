@@ -41,8 +41,7 @@ fetch_acoes_by_interesse <- function(url_api, interesse) {
 #' @return Dataframe com dados das ações parlamentares
 fetch_all_acoes <- function(url_api) {
   # Remove painel desativado
-  interesses <- fetch_interesses(url_api) %>%
-    filter(interesse != "leggo")
+  interesses <- fetch_interesses(url_api)
   
   acoes <- purrr::map_df(interesses$interesse,
                          ~ fetch_acoes_by_interesse(url_api, .x))
