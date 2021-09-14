@@ -32,10 +32,11 @@ padroniza_sigla <- function(sigla) {
 #' @description Retorna os interesses cadastrados no Parlametria
 #' @param url_api  URL da API do Painel.
 #' @return Dataframe com dados dos interesses
-fetch_interesses <- function(url_api) {
+fetch_interesses <- function(url_api = "https://api.leggo.org.br/") {
   interesses <- RCurl::getURI(paste0(url_api, "interesses")) %>%
     jsonlite::fromJSON() %>%
-    select(interesse)
+    select(interesse) %>% 
+    filter(interesse != "leggo")
   
   return(interesses)
 }

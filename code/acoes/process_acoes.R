@@ -13,6 +13,8 @@ process_acoes <- function(url_api) {
   acoes_agg <- acoes %>% 
     select(-soma_peso_documentos) %>% 
     spread(painel, quantidade_documentos) %>% 
+    tidyr::complete(mes, ano, id_autor_parlametria,
+                    fill = list(pandemia = 0)) %>% 
     mutate_all(~replace_na(., 0))
   
   return(acoes_agg)
